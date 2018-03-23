@@ -499,15 +499,23 @@ public class GatewayImpl extends AbstractService<GatewayImpl> implements Gateway
 
 	@Override
 	public WebResult<MatchmakingQueuesResponse> matchmakingGet(RoutingContext context, String userId) throws SuspendExecution, InterruptedException {
-		return WebResult.succeeded(
-				new MatchmakingQueuesResponse()
-						.addQueuesItem(new MatchmakingQueueItem()
-								.name("Constructed")
-								.description("An unranked constructed with decks in the Custom format (includes community cards).")
-								.tooltip("Play online with custom cards!")
-								.queueId("constructed")
-								.requires(new MatchmakingQueueItemRequires()
-										.deckIdChoices(getAccounts().get(userId).getDecks()))));
+		List<String> allDecks = getAccounts().get(userId).getDecks();
+		MatchmakingQueuesResponse queues = new MatchmakingQueuesResponse()
+				.addQueuesItem(new MatchmakingQueueItem()
+						.queueId("quickplay-1")
+						.name("Quick Play")
+						.description("An unranked constructed mode with any deck, playing against a powerful computer opponent.")
+						.tooltip("Play against a powerful computer opponent!")
+						.requires(new MatchmakingQueueItemRequires()
+								.deckIdChoices(allDecks)))
+				.addQueuesItem(new MatchmakingQueueItem()
+						.queueId("constructed-custom-any-1")
+						.name("Constructed")
+						.description("An unranked constructed matchmaking queue against others. Decks can contain custom cards.")
+						.tooltip("Play online with custom cards!")
+						.requires(new MatchmakingQueueItemRequires()
+								.deckIdChoices(allDecks)));
+		return WebResult.succeeded(queues);
 	}
 
 	@Override

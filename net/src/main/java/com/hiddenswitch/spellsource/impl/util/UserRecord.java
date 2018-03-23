@@ -2,8 +2,6 @@ package com.hiddenswitch.spellsource.impl.util;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -40,6 +38,7 @@ public class UserRecord extends MongoRecord implements User, Serializable, Clust
 	private List<String> decks;
 	private List<FriendRecord> friends;
 	private ServicesRecord services;
+	private PerformanceRecord performance;
 	private boolean bot;
 
 	/**
@@ -204,5 +203,13 @@ public class UserRecord extends MongoRecord implements User, Serializable, Clust
 
 	public void setUsername(String username) {
 		this.username = username;
+	}
+
+	public PerformanceRecord getPerformance() {
+		return performance;
+	}
+
+	public void setPerformance(PerformanceRecord performance) {
+		this.performance = performance;
 	}
 }

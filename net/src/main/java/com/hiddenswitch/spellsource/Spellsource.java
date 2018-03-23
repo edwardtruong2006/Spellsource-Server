@@ -287,6 +287,12 @@ public class Spellsource {
 									)
 							), new UpdateOptions().setMulti(true).setWriteOption(WriteOption.UNACKNOWLEDGED));
 						}))
+				.add(new MigrationRequest()
+				.withVersion(9)
+				.withUp(thisVertx -> {
+					// Add performance records for the queues supported in Spellsource
+
+				}))
 				.migrateTo(8, then2 ->
 						then.handle(then2.succeeded() ? Future.succeededFuture() : Future.failedFuture(then2.cause())));
 		return this;
