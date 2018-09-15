@@ -1,21 +1,93 @@
 import os
 import re
 from collections import deque
+from copy import deepcopy
+from dataclasses import dataclass
 from json import loads, dumps
 from mimetypes import MimeTypes
-from typing import Union, Mapping, Iterable, Optional, Deque
+from typing import Union, Mapping, Iterable, Optional, Deque, List
 from urllib.parse import urlparse, ParseResult
 
+import numpy as np
 from autoboto.services import rekognition, s3
 from autoboto.services.rekognition.shapes import Image, S3Object, DetectTextResponse, TextTypes, TextDetection
 from botocore.exceptions import ClientError
 from requests import get
+from scrapy import Spider, Request, log, signals
+from scrapy.crawler import Crawler
+from scrapy.http import TextResponse
+from scrapy.settings import Settings
+from twisted.internet import reactor
+
+from ..ext.hearthcards import enrich_from_description
 
 _MIME = MimeTypes()
 
 
+class HearthpwnThreadPageToImages(object):
+
+    @staticmethod
+    def _spider_closing(spider):
+        """Activates on spider closed signal"""
+        log.msg("Closing reactor", level=log.INFO)
+        reactor.stop()
+
+    @dataclass()
+    class ImgElement:
+        src: str
+        width: int
+        height: int
+
+    class _Spider(Spider):
+        name = 'hearthpwn'
+
+        def start_requests(self):
+            for url in self.start_urls:
+                yield Request(url=url, callback=self.parse)
+
+        def parse(self, response: TextResponse):
+            res = response.selector.css('.forum-post-body img') \
+                .css('::attr(src), ::attr(width), ::attr(height)') \
+                .extract()
+            url_width_heights = np.reshape(res, (len(res) // 3, 3))
+            for (src, width_str, height_str) in url_width_heights:
+                width = int(width_str)
+                height = int(height_str)
+                if 0.68 <= width / height <= 0.78:
+                    yield {
+                        'src': src,
+                        'width': width,
+                        'height': height
+                    }
+
+    def __init__(self, *urls: Iterable[str]):
+        self.urls = urls
+        self._results = {}  # type: Mapping[str, HearthpwnThreadPageToImages.ImgElement]
+
+    def __len__(self):
+        return len(self.urls)
+
+    def __iter__(self):
+        crawler = Crawler(HearthpwnThreadPageToImages._Spider)
+        crawler.signals.connect(HearthpwnThreadPageToImages._spider_closing, signal=signals.spider_closed)
+        crawler.crawl(start_urls=self.urls)
+        reactor.run()
+
+
+class Enricher(object):
+    def __init__(self, *card_descs: Mapping):
+        self.card_descs = card_descs
+
+    def __len__(self):
+        return len(self.card_descs)
+
+    def __iter__(self) -> Mapping:
+        for card_desc in self.card_descs:
+            yield enrich_from_description(card_dict=deepcopy(card_desc), description=card_desc['description'])
+
+
 class RekognitionGenerator(object):
-    def __init__(self, *images: Iterable[Union[str, Mapping, DetectTextResponse]], bucket='minionate',
+    def __init__(self, *images: Union[str, Mapping, DetectTextResponse], bucket='minionate',
                  results_cache_prefix='image2card/results',
                  image_cache_prefix='image2card/images'):
         self.images = images
@@ -118,7 +190,7 @@ class SpellsourceCardDescGenerator(object):
         re.compile(r'[Ss]'): '5'
     }
 
-    def __init__(self, *detect_text_responses: Iterable[DetectTextResponse]):
+    def __init__(self, *detect_text_responses: DetectTextResponse):
         self.detect_text_responses = detect_text_responses  # type: Iterable[DetectTextResponse]
 
     def __len__(self):
